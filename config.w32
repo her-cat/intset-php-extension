@@ -1,0 +1,13 @@
+// $Id$
+// vim:ft=javascript
+
+// If your extension references something external, use ARG_WITH
+// ARG_WITH("intset", "for intset support", "no");
+
+// Otherwise, use ARG_ENABLE
+// ARG_ENABLE("intset", "enable intset support", "no");
+
+if (PHP_INTSET != "no") {
+	EXTENSION("intset", "intset.c", PHP_EXTNAME_SHARED, "/DZEND_ENABLE_STATIC_TSRMLS_CACHE=1");
+}
+
