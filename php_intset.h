@@ -62,6 +62,8 @@ ZEND_TSRMLS_CACHE_EXTERN()
 #define INTSET_ENC_INT32 (sizeof(int32_t))
 #define INTSET_ENC_INT64 (sizeof(int64_t))
 
+#define INTSET_TYPE "intset"
+
 typedef struct intset {
 	uint32_t encoding;
 	uint32_t length;

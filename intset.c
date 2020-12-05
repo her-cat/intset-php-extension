@@ -26,79 +26,77 @@
 #include "ext/standard/info.h"
 #include "php_intset.h"
 
-#define INTSET_TYPE "intset"
-
 /* True global resources - no need for thread safety here */
 static int le_intset;
 
 static uint8_t _intsetValueEncoding(int64_t v) {
-	if (v < INT32_MIN || v > INT32_MAX)
+    if (v < INT32_MIN || v > INT32_MAX)
         return INTSET_ENC_INT64;
-	else if (v < INT16_MIN || v > INT16_MAX)
+    else if (v < INT16_MIN || v > INT16_MAX)
         return INTSET_ENC_INT32;
-	else
+    else
         return INTSET_ENC_INT16;
 }
 
 static int64_t _intsetGetEncoded(intset *is, int pos, uint8_t enc) {
-	int64_t v64;
-	int32_t v32;
-	int16_t v16;
+    int64_t v64;
+    int32_t v32;
+    int16_t v16;
 
-	if (enc == INTSET_ENC_INT64) {
+    if (enc == INTSET_ENC_INT64) {
         memcpy(&v64, ((int64_t *)is->contents)+pos, sizeof(v64));
         return v64;
-	} else if (enc == INTSET_ENC_INT32) {
+    } else if (enc == INTSET_ENC_INT32) {
         memcpy(&v32, ((int32_t *)is->contents)+pos, sizeof(v32));
         return v32;
-	} else {
+    } else {
         memcpy(&v16, ((int16_t *)is->contents)+pos, sizeof(v16));
         return v16;
-	}
+    }
 }
 
 static int64_t _intsetGet(intset *is, int pos) {
-	return _intsetGetEncoded(is, pos, is->encoding);
+    return _intsetGetEncoded(is, pos, is->encoding);
 }
 
 static void _intsetSet(intset *is, int pos, int64_t value) {
-	if (is->encoding == INTSET_ENC_INT64) {
+    if (is->encoding == INTSET_ENC_INT64) {
         ((int64_t *)is->contents)[pos] = value;
-	} else if (is->encoding == INTSET_ENC_INT32) {
+    } else if (is->encoding == INTSET_ENC_INT32) {
         ((int32_t *)is->contents)[pos] = value;
-	} else {
+    } else {
         ((int16_t *)is->contents)[pos] = value;
-	}
+    }
 }
 
 static intset *intsetResize(intset *is, uint32_t len) {
-	return erealloc(is, len * is->encoding);
+    return erealloc(is, len * is->encoding);
 }
 
 /* 搜索 value 在 intset 中的位置。 */
 static uint8_t intsetSearch(intset *is, uint64_t value, uint32_t *pos) {
-	int min = 0, max = is->length - 1, mid = -1;
-	int64_t cur = -1;
+    int min = 0, max = is->length - 1, mid = -1;
+    int64_t cur = -1;
 
-	/* intset 为空直接返回 0 */
-	if (is->length == 0) {
+    /* intset 为空直接返回 0 */
+    if (is->length == 0) {
         if (pos) *pos = 0;
         return 0;
-	} else {
+    } else {
         /* value 大于 intset 中最大的值时，pos 为 inset 的长度，
          * value 小于 intset 中最小的值时，post 为 0，
          * 不管是大于还是小于，都需要对 intset 进行扩容。 */
         if (value > _intsetGet(is, max)) {
-        	if (pos) *pos = is->length;
-        	return 0;
+            if (pos) *pos = is->length;
+            return 0;
         } else if (value < _intsetGet(is, 0)) {
-        	*pos = 0;
-        	return 0;
+            *pos = 0;
+            return 0;
         }
-	}
+    }
 
-	/* 二分查找法确定 value 是否在 intset 中。 */
-	while (max >= min) {
+    /* 二分查找法确定 value 是否在 intset 中。 */
+    while (max >= min) {
         /* 右移一位表示除以二。 */
         mid = ((unsigned int)min + (unsigned int)max) >> 1;
         /* 获取处于 mid 的值。 */
@@ -107,112 +105,112 @@ static uint8_t intsetSearch(intset *is, uint64_t value, uint32_t *pos) {
          * value < cur 时，表示 value 可能在左边值更小的区域，
          * 其他情况说明找到了 value 所在的位置。 */
         if (value > cur) {
-        	min = mid + 1;
+            min = mid + 1;
         } else if (value < cur) {
-        	max = mid - 1;
+            max = mid - 1;
         } else {
-        	break;
+            break;
         }
-	}
+    }
 
-	if (value == cur) {
+    if (value == cur) {
         if (pos) *pos = mid;
         return 1;
-	} else {
+    } else {
         if (pos) *pos = min;
         return 0;
-	}
+    }
 }
 
 static intset *intsetUpgradeAndAdd(intset *is, int64_t value) {
-	uint8_t curenc = is->encoding;
-	uint8_t newenc = _intsetValueEncoding(value);
-	int length = is->length;
-	int prepend = value < 0 ? 1 : 0;
+    uint8_t curenc = is->encoding;
+    uint8_t newenc = _intsetValueEncoding(value);
+    int length = is->length;
+    int prepend = value < 0 ? 1 : 0;
 
-	/* 先设置新的编码和扩容。 */
-	is->encoding = newenc;
-	is = intsetResize(is, is->length + 1);
+    /* 先设置新的编码和扩容。 */
+    is->encoding = newenc;
+    is = intsetResize(is, is->length + 1);
 
-	/* 从后向前升级，这样不会覆盖旧值。
-	 * 注意，prepend 变量用于确保 intset 开头或结尾有一个空位，用来存储新值 */
-	while (length--)
+    /* 从后向前升级，这样不会覆盖旧值。
+     * 注意，prepend 变量用于确保 intset 开头或结尾有一个空位，用来存储新值 */
+    while (length--)
         _intsetSet(is, length + prepend, _intsetGetEncoded(is, length, curenc));
 
-	/* 在 intset 开头或者末尾处设置新值。 */
-	if (prepend)
+    /* 在 intset 开头或者末尾处设置新值。 */
+    if (prepend)
         _intsetSet(is, 0, value);
-	else
+    else
         _intsetSet(is, is->length, value);
 
-	is->length = is->length + 1;
-	return is;
+    is->length = is->length + 1;
+    return is;
 }
 
 static void intsetMoveTail(intset *is, uint32_t from, uint32_t to) {
-	void *src, *dst;
-	uint32_t bytes = is->length - from;
-	uint32_t encoding = is->encoding;
+    void *src, *dst;
+    uint32_t bytes = is->length - from;
+    uint32_t encoding = is->encoding;
 
-	if (encoding == INTSET_ENC_INT64) {
+    if (encoding == INTSET_ENC_INT64) {
         src = (int64_t *)is->contents + from;
         dst = (int64_t *)is->contents + to;
         bytes *= sizeof(int64_t);
-	} else if (encoding == INTSET_ENC_INT32) {
+    } else if (encoding == INTSET_ENC_INT32) {
         src = (int32_t *)is->contents + from;
         dst = (int32_t *)is->contents + to;
         bytes *= sizeof(int32_t);
-	} else {
+    } else {
         src = (int16_t *)is->contents + from;
         dst = (int16_t *)is->contents + to;
         bytes *= sizeof(int16_t);
-	}
-	memmove(dst, src, bytes);
+    }
+    memmove(dst, src, bytes);
 }
 
 static void intsetDestroy(zend_resource *rsrc TSRMLS_DC){
-	intset *is = (intset *) rsrc->ptr;
-	if (is->length > 0) {
+    intset *is = (intset *) rsrc->ptr;
+    if (is->length > 0) {
         efree(is->contents);
-	}
-	efree(is);
+    }
+    efree(is);
 }
 
 intset *intsetNew(void) {
-	intset *is = emalloc(sizeof(intset));
-	is->encoding = INTSET_ENC_INT16;
-	is->length = 0;
+    intset *is = emalloc(sizeof(intset));
+    is->encoding = INTSET_ENC_INT16;
+    is->length = 0;
 
-	return is;
+    return is;
 }
 
 intset *intsetAdd(intset *is, int64_t value, uint8_t *success) {
-	uint8_t valuec = _intsetValueEncoding(value);
-	uint32_t pos;
-	if (success) *success = 1;
+    uint8_t valuec = _intsetValueEncoding(value);
+    uint32_t pos;
+    if (success) *success = 1;
 
-	if (valuec > is->encoding) {
+    if (valuec > is->encoding) {
         return intsetUpgradeAndAdd(is, value);
-	} else {
+    } else {
         if (intsetSearch(is, value, &pos)) {
-        	if (success) *success = 0;
-        	return is;
+            if (success) *success = 0;
+            return is;
         }
 
         is = intsetResize(is, is->length + 1);
         if (pos < is->length) intsetMoveTail(is, pos, pos + 1);
-	}
+    }
 
-	_intsetSet(is, pos, value);
-	is->length = is->length + 1;
-	return is;
+    _intsetSet(is, pos, value);
+    is->length = is->length + 1;
+    return is;
 }
 
 intset *intsetRemove(intset *is, int64_t value, uint8_t *success) {
-	uint8_t valenc = _intsetValueEncoding(value);
-	uint32_t pos;
+    uint8_t valenc = _intsetValueEncoding(value);
+    uint32_t pos;
 
-	if (valenc <= is->encoding && intsetSearch(is, value, &pos)) {
+    if (valenc <= is->encoding && intsetSearch(is, value, &pos)) {
         uint32_t len = is->length;
 
         if (success) *success = 1;
@@ -220,49 +218,49 @@ intset *intsetRemove(intset *is, int64_t value, uint8_t *success) {
         if (pos < (len - 1)) intsetMoveTail(is, pos + 1, pos);
         is = intsetResize(is, len - 1);
         is->length = len - 1;
-	}
-	return is;
+    }
+    return is;
 }
 
 uint8_t intsetFind(intset *is, int64_t value) {
-	uint8_t valenc = _intsetValueEncoding(value);
-	return valenc <= is->encoding && intsetSearch(is, value, NULL);
+    uint8_t valenc = _intsetValueEncoding(value);
+    return valenc <= is->encoding && intsetSearch(is, value, NULL);
 }
 
 int64_t intsetRandom(intset *is) {
-	return _intsetGet(is, rand() % is->length);
+    return _intsetGet(is, rand() % is->length);
 }
 
 uint8_t intsetGet(intset *is, uint32_t pos, int64_t *value) {
-	if (pos < is->length) {
+    if (pos < is->length) {
         *value = _intsetGet(is, pos);
         return 1;
-	}
-	return 0;
+    }
+    return 0;
 }
 
 uint32_t intsetLen(const intset *is) {
-	return is->length;
+    return is->length;
 }
 
 size_t intsetBlobLen(intset *is) {
-	return sizeof(intset) + is->length * is->encoding;
+    return sizeof(intset) + is->length * is->encoding;
 }
 
 /* {{{ proto resource create_intset()
     */
 PHP_FUNCTION(intset_create)
 {
-	if (ZEND_NUM_ARGS() != 0) WRONG_PARAM_COUNT
+    if (ZEND_NUM_ARGS() != 0) WRONG_PARAM_COUNT
 
-	intset *is;
+    intset *is;
 
-	is = intsetNew();
-	if (!is) {
+    is = intsetNew();
+    if (!is) {
         RETURN_NULL()
-	}
+    }
 
-	RETURN_RES(zend_register_resource(is, le_intset))
+    RETURN_RES(zend_register_resource(is, le_intset))
 }
 /* }}} */
 
@@ -270,25 +268,25 @@ PHP_FUNCTION(intset_create)
     */
 PHP_FUNCTION(intset_add)
 {
-	zend_long value;
-	uint8_t success;
-	zval *isp = NULL;
-	intset *is = NULL;
+    zend_long value;
+    uint8_t success;
+    zval *isp = NULL;
+    intset *is = NULL;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "rl", &isp, &value) == FAILURE)
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "rl", &isp, &value) == FAILURE)
         return;
 
-	if ((is = zend_fetch_resource(Z_RES_P(isp), INTSET_TYPE, le_intset)) == NULL) {
+    if ((is = zend_fetch_resource(Z_RES_P(isp), INTSET_TYPE, le_intset)) == NULL) {
         RETURN_FALSE
-	}
+    }
 
-	intsetAdd(is, value, &success);
+    intsetAdd(is, value, &success);
 
-	if (success) {
+    if (success) {
         RETURN_TRUE
-	}
+    }
 
-	RETURN_FALSE
+    RETURN_FALSE
 }
 /* }}} */
 
@@ -296,25 +294,25 @@ PHP_FUNCTION(intset_add)
     */
 PHP_FUNCTION(intset_remove)
 {
-	zend_long value;
-	uint8_t success;
-	zval *isp = NULL;
-	intset *is = NULL;
+    zend_long value;
+    uint8_t success;
+    zval *isp = NULL;
+    intset *is = NULL;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "rl", &isp, &value) == FAILURE)
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "rl", &isp, &value) == FAILURE)
         return;
 
-	if ((is = zend_fetch_resource(Z_RES_P(isp), INTSET_TYPE, le_intset)) == NULL) {
+    if ((is = zend_fetch_resource(Z_RES_P(isp), INTSET_TYPE, le_intset)) == NULL) {
         RETURN_FALSE
-	}
+    }
 
-	intsetRemove(is, value, &success);
+    intsetRemove(is, value, &success);
 
-	if (success) {
+    if (success) {
         RETURN_TRUE
-	}
+    }
 
-	RETURN_FALSE
+    RETURN_FALSE
 }
 /* }}} */
 
@@ -322,22 +320,22 @@ PHP_FUNCTION(intset_remove)
     */
 PHP_FUNCTION(intset_find)
 {
-	zend_long value;
-	zval *isp = NULL;
-	intset *is = NULL;
+    zend_long value;
+    zval *isp = NULL;
+    intset *is = NULL;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "rl", &isp, &value) == FAILURE)
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "rl", &isp, &value) == FAILURE)
         return;
 
-	if ((is = zend_fetch_resource(Z_RES_P(isp), INTSET_TYPE, le_intset)) == NULL) {
+    if ((is = zend_fetch_resource(Z_RES_P(isp), INTSET_TYPE, le_intset)) == NULL) {
         RETURN_FALSE
-	}
+    }
 
-	if (intsetFind(is, value)) {
+    if (intsetFind(is, value)) {
         RETURN_TRUE
-	}
+    }
 
-	RETURN_FALSE
+    RETURN_FALSE
 }
 /* }}} */
 
@@ -345,17 +343,17 @@ PHP_FUNCTION(intset_find)
     */
 PHP_FUNCTION(intset_random)
 {
-	zval *isp = NULL;
-	intset *is = NULL;
+    zval *isp = NULL;
+    intset *is = NULL;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "r", &isp) == FAILURE)
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "r", &isp) == FAILURE)
         return;
 
-	if ((is = zend_fetch_resource(Z_RES_P(isp), INTSET_TYPE, le_intset)) == NULL) {
+    if ((is = zend_fetch_resource(Z_RES_P(isp), INTSET_TYPE, le_intset)) == NULL) {
         RETURN_FALSE
-	}
+    }
 
-	RETURN_LONG(intsetRandom(is))
+    RETURN_LONG(intsetRandom(is))
 }
 /* }}} */
 
@@ -363,22 +361,22 @@ PHP_FUNCTION(intset_random)
     */
 PHP_FUNCTION(intset_get)
 {
-	zend_long pos, value;
-	zval *isp = NULL;
-	intset *is = NULL;
+    zend_long pos, value;
+    zval *isp = NULL;
+    intset *is = NULL;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "rl", &isp, &pos) == FAILURE)
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "rl", &isp, &pos) == FAILURE)
         return;
 
-	if ((is = zend_fetch_resource(Z_RES_P(isp), INTSET_TYPE, le_intset)) == NULL) {
+    if ((is = zend_fetch_resource(Z_RES_P(isp), INTSET_TYPE, le_intset)) == NULL) {
         RETURN_FALSE
-	}
+    }
 
-	if (intsetGet(is, pos, &value)) {
+    if (intsetGet(is, pos, &value)) {
         RETURN_LONG(value)
-	}
+    }
 
-	RETURN_FALSE
+    RETURN_FALSE
 }
 /* }}} */
 
@@ -386,17 +384,17 @@ PHP_FUNCTION(intset_get)
     */
 PHP_FUNCTION(intset_len)
 {
-	zval *isp = NULL;
-	intset *is = NULL;
+    zval *isp = NULL;
+    intset *is = NULL;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "r", &isp) == FAILURE)
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "r", &isp) == FAILURE)
         return;
 
-	if ((is = zend_fetch_resource(Z_RES_P(isp), INTSET_TYPE, le_intset)) == NULL) {
+    if ((is = zend_fetch_resource(Z_RES_P(isp), INTSET_TYPE, le_intset)) == NULL) {
         RETURN_FALSE
-	}
+    }
 
-	RETURN_LONG(intsetLen(is))
+    RETURN_LONG(intsetLen(is))
 }
 /* }}} */
 
@@ -404,17 +402,17 @@ PHP_FUNCTION(intset_len)
     */
 PHP_FUNCTION(intset_blob_len)
 {
-	zval *isp = NULL;
-	intset *is = NULL;
+    zval *isp = NULL;
+    intset *is = NULL;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "r", &isp) == FAILURE)
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "r", &isp) == FAILURE)
         return;
 
-	if ((is = zend_fetch_resource(Z_RES_P(isp), INTSET_TYPE, le_intset)) == NULL) {
+    if ((is = zend_fetch_resource(Z_RES_P(isp), INTSET_TYPE, le_intset)) == NULL) {
         RETURN_FALSE
-	}
+    }
 
-	RETURN_LONG(intsetBlobLen(is))
+    RETURN_LONG(intsetBlobLen(is))
 }
 /* }}} */
 
@@ -422,8 +420,8 @@ PHP_FUNCTION(intset_blob_len)
  */
 PHP_MINIT_FUNCTION(intset)
 {
-	le_intset = zend_register_list_destructors_ex(intsetDestroy, NULL, INTSET_TYPE, module_number);
-	return SUCCESS;
+    le_intset = zend_register_list_destructors_ex(intsetDestroy, NULL, INTSET_TYPE, module_number);
+    return SUCCESS;
 }
 /* }}} */
 
@@ -431,7 +429,7 @@ PHP_MINIT_FUNCTION(intset)
  */
 PHP_MSHUTDOWN_FUNCTION(intset)
 {
-	return SUCCESS;
+    return SUCCESS;
 }
 /* }}} */
 
@@ -441,9 +439,9 @@ PHP_MSHUTDOWN_FUNCTION(intset)
 PHP_RINIT_FUNCTION(intset)
 {
 #if defined(COMPILE_DL_INTSET) && defined(ZTS)
-	ZEND_TSRMLS_CACHE_UPDATE();
+    ZEND_TSRMLS_CACHE_UPDATE();
 #endif
-	return SUCCESS;
+    return SUCCESS;
 }
 /* }}} */
 
@@ -452,7 +450,7 @@ PHP_RINIT_FUNCTION(intset)
  */
 PHP_RSHUTDOWN_FUNCTION(intset)
 {
-	return SUCCESS;
+    return SUCCESS;
 }
 /* }}} */
 
@@ -460,9 +458,9 @@ PHP_RSHUTDOWN_FUNCTION(intset)
  */
 PHP_MINFO_FUNCTION(intset)
 {
-	php_info_print_table_start();
-	php_info_print_table_header(2, "intset support", "enabled");
-	php_info_print_table_end();
+    php_info_print_table_start();
+    php_info_print_table_header(2, "intset support", "enabled");
+    php_info_print_table_end();
 }
 /* }}} */
 
@@ -471,31 +469,31 @@ PHP_MINFO_FUNCTION(intset)
  * Every user visible function must have an entry in intset_functions[].
  */
 const zend_function_entry intset_functions[] = {
-	PHP_FE(intset_create, NULL)
-	PHP_FE(intset_add, NULL)
-	PHP_FE(intset_remove, NULL)
-	PHP_FE(intset_find, NULL)
-	PHP_FE(intset_random, NULL)
-	PHP_FE(intset_get, NULL)
-	PHP_FE(intset_len, NULL)
-	PHP_FE(intset_blob_len, NULL)
-	PHP_FE_END	/* Must be the last line in intset_functions[] */
+    PHP_FE(intset_create, NULL)
+    PHP_FE(intset_add, NULL)
+    PHP_FE(intset_remove, NULL)
+    PHP_FE(intset_find, NULL)
+    PHP_FE(intset_random, NULL)
+    PHP_FE(intset_get, NULL)
+    PHP_FE(intset_len, NULL)
+    PHP_FE(intset_blob_len, NULL)
+    PHP_FE_END    /* Must be the last line in intset_functions[] */
 };
 /* }}} */
 
 /* {{{ intset_module_entry
  */
 zend_module_entry intset_module_entry = {
-	STANDARD_MODULE_HEADER,
-	"intset",
-	intset_functions,
-	PHP_MINIT(intset),
-	PHP_MSHUTDOWN(intset),
-	PHP_RINIT(intset),        /* Replace with NULL if there's nothing to do at request start */
-	PHP_RSHUTDOWN(intset),	/* Replace with NULL if there's nothing to do at request end */
-	PHP_MINFO(intset),
-	PHP_INTSET_VERSION,
-	STANDARD_MODULE_PROPERTIES
+    STANDARD_MODULE_HEADER,
+    "intset",
+    intset_functions,
+    PHP_MINIT(intset),
+    PHP_MSHUTDOWN(intset),
+    PHP_RINIT(intset),        /* Replace with NULL if there's nothing to do at request start */
+    PHP_RSHUTDOWN(intset),    /* Replace with NULL if there's nothing to do at request end */
+    PHP_MINFO(intset),
+    PHP_INTSET_VERSION,
+    STANDARD_MODULE_PROPERTIES
 };
 /* }}} */
 
