@@ -4,7 +4,7 @@ if(!extension_loaded('intset')) {
 	dl('php_intset.' . PHP_SHLIB_SUFFIX);
 }
 
-$intset = create_intset();
+$intset = intset_create();
 
 var_dump($intset);
 

@@ -4,7 +4,7 @@ Check intset basic functions
 <?php if (!extension_loaded("intset")) print "skip"; ?>
 --FILE--
 <?php
-$intset = create_intset();
+$intset = intset_create();
 
 var_dump((bool)$intset);
 

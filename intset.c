@@ -251,7 +251,7 @@ size_t intsetBlobLen(intset *is) {
 
 /* {{{ proto resource create_intset()
     */
-PHP_FUNCTION(create_intset)
+PHP_FUNCTION(intset_create)
 {
 	if (ZEND_NUM_ARGS() != 0) WRONG_PARAM_COUNT
 
@@ -471,7 +471,7 @@ PHP_MINFO_FUNCTION(intset)
  * Every user visible function must have an entry in intset_functions[].
  */
 const zend_function_entry intset_functions[] = {
-	PHP_FE(create_intset, NULL)
+	PHP_FE(intset_create, NULL)
 	PHP_FE(intset_add, NULL)
 	PHP_FE(intset_remove, NULL)
 	PHP_FE(intset_find, NULL)
