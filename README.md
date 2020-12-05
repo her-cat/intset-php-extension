@@ -7,3 +7,5 @@ $ make
 $ make test
 $ make install
 ```
+
+Learn how to implement PHP function extension.
