@@ -282,11 +282,7 @@ PHP_FUNCTION(intset_add)
 
     intsetAdd(is, value, &success);
 
-    if (success) {
-        RETURN_TRUE
-    }
-
-    RETURN_FALSE
+    RETURN_BOOL(success)
 }
 /* }}} */
 
@@ -308,11 +304,7 @@ PHP_FUNCTION(intset_remove)
 
     intsetRemove(is, value, &success);
 
-    if (success) {
-        RETURN_TRUE
-    }
-
-    RETURN_FALSE
+    RETURN_BOOL(success)
 }
 /* }}} */
 
@@ -331,11 +323,7 @@ PHP_FUNCTION(intset_find)
         RETURN_FALSE
     }
 
-    if (intsetFind(is, value)) {
-        RETURN_TRUE
-    }
-
-    RETURN_FALSE
+    RETURN_BOOL(intsetFind(is, value))
 }
 /* }}} */
 
